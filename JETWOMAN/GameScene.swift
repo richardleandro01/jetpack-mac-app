@@ -9,80 +9,127 @@
 import SpriteKit
 import GameplayKit
 
-class GameScene: SKScene {
+class GameScene: SKScene, SKPhysicsContactDelegate {
+    let chacacters = ["A","B","C","D","E","1","2","3","4"]
+    let keyCodes = [0,11,8,2,14,18,19,20,21]
+    let jetWomanCategory : UInt32 = 2
+    let spikesCategory : UInt32 = 1
     
     private var label : SKLabelNode?
-    private var spinnyNode : SKShapeNode?
+    private var jetWoman : SKSpriteNode?
+    private var startButton : SKSpriteNode?
+    private var scoreLabel : SKLabelNode?
+    private var highscorelabel : SKLabelNode?
+    
+    var currentCharacter : String?
+    var currentKeyCode : Int?
+    var score = 0
     
     override func didMove(to view: SKView) {
+        
+        self.physicsWorld.contactDelegate = self
         
         // Get label node from scene and store it for use later
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
             label.alpha = 0.0
-            label.run(SKAction.fadeIn(withDuration: 2.0))
-        }
-        
-        // Create shape node to use during mouse interaction
-        let w = (self.size.width + self.size.height) * 0.05
-        self.spinnyNode = SKShapeNode.init(rectOf: CGSize.init(width: w, height: w), cornerRadius: w * 0.3)
-        
-        if let spinnyNode = self.spinnyNode {
-            spinnyNode.lineWidth = 2.5
             
-            spinnyNode.run(SKAction.repeatForever(SKAction.rotate(byAngle: CGFloat(Double.pi), duration: 1)))
-            spinnyNode.run(SKAction.sequence([SKAction.wait(forDuration: 0.5),
-                                              SKAction.fadeOut(withDuration: 0.5),
-                                              SKAction.removeFromParent()]))
         }
+        
+        self.jetWoman = self.childNode(withName: "jetwoman") as?
+        SKSpriteNode
+        self.startButton = self.childNode(withName: "startbutton") as?
+        SKSpriteNode
+        self.scoreLabel = self.childNode(withName: "scoreLabel") as?
+        SKLabelNode
+        self.highscorelabel = self.childNode(withName: "highscorelabel") as?
+        SKLabelNode
+        
+        let highscore = UserDefaults.standard.integer(forKey: "highscore")
+        highscorelabel?.text = "High:\(highscore)"
+        scoreLabel?.text = "Score:\(score)"
+
+    }
+    
+    func updateHighScore(){
+        let highscore = UserDefaults.standard.integer(forKey: "highscore")
+        highscorelabel?.text = "High:\(highscore)"
     }
     
     
-    func touchDown(atPoint pos : CGPoint) {
-        if let n = self.spinnyNode?.copy() as! SKShapeNode? {
-            n.position = pos
-            n.strokeColor = SKColor.green
-            self.addChild(n)
+    func chooseNextKey(){
+        let count = UInt32(chacacters.count)
+        let randomIndex = Int(arc4random_uniform(count))
+        currentCharacter = chacacters[randomIndex]
+        currentKeyCode = keyCodes[randomIndex]
+        if let label = self.label {
+            label.text = currentCharacter
+            label.alpha = 1.0
         }
     }
     
-    func touchMoved(toPoint pos : CGPoint) {
-        if let n = self.spinnyNode?.copy() as! SKShapeNode? {
-            n.position = pos
-            n.strokeColor = SKColor.blue
-            self.addChild(n)
-        }
-    }
-    
-    func touchUp(atPoint pos : CGPoint) {
-        if let n = self.spinnyNode?.copy() as! SKShapeNode? {
-            n.position = pos
-            n.strokeColor = SKColor.red
-            self.addChild(n)
-        }
-    }
     
     override func mouseDown(with event: NSEvent) {
-        self.touchDown(atPoint: event.location(in: self))
-    }
-    
-    override func mouseDragged(with event: NSEvent) {
-        self.touchMoved(toPoint: event.location(in: self))
-    }
-    
-    override func mouseUp(with event: NSEvent) {
-        self.touchUp(atPoint: event.location(in: self))
+        let point = event.location(in: self)
+        let nodeAtpoint = nodes(at: point)
+        for node in nodeAtpoint{
+            if node.name == "startButton"{
+                if let jetWoman = self.jetWoman{
+                    jetWoman.position = CGPoint(x: 0, y: 100)
+                    jetWoman.physicsBody?.pinned = false
+                    node.removeFromParent()
+                    score = 0
+                    scoreLabel?.text = "Score:\(score)"
+                    chooseNextKey()
+                }
+            }
+        }
+        
     }
     
     override func keyDown(with event: NSEvent) {
-        switch event.keyCode {
-        case 0x31:
-            if let label = self.label {
-                label.run(SKAction.init(named: "Pulse")!, withKey: "fadeInOut")
+        if let theKeyCode = currentKeyCode{
+            switch event.keyCode {
+            case UInt16(theKeyCode):
+                if let jetWoman = self.jetWoman{
+                    jetWoman.physicsBody?.applyImpulse(CGVector(dx:0,dy:(200 - score*5)))
+                    score += 1
+                    scoreLabel?.text = "Score:\(score)"
+                    chooseNextKey()
+                }
+            default:
+                print("keyDown: \(event.characters!) keyCode: \(event.keyCode)")
             }
-        default:
-            print("keyDown: \(event.characters!) keyCode: \(event.keyCode)")
         }
+    }
+    
+    
+    func didBegin(_ contact: SKPhysicsContact) {
+        let bodyA = contact.bodyA
+        let bodyB = contact.bodyB
+        
+        if bodyA.categoryBitMask == spikesCategory || bodyB.categoryBitMask == jetWomanCategory {
+            if let startButton = self.startButton{
+                if startButton.parent != self{
+                    addChild(startButton)
+                    currentCharacter = nil
+                    currentKeyCode = nil
+                    if let label = self.label {
+                        label.alpha = 0.0
+                    }
+                    //check if high score
+                    let highscore = UserDefaults.standard.integer(forKey: "highscore")
+                    if score > highscore{
+                        UserDefaults.standard.set(score, forKey: "highscore")
+                        UserDefaults.standard.synchronize()
+                        highscorelabel?.text = "High:\(score)"
+                    }
+                }
+                
+            }
+        }
+        
+        
     }
     
     
